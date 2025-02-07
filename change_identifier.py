@@ -12,10 +12,10 @@ class CSVProcessorApp:
         self.button_for = ["Live", "Test", "Process"]
 
         # Create three datasets with two columns each
-        self.data1 = []
-        self.data2 = []
-        self.data3 = []
-        self.module_name = ""
+        self.live_items = []
+        self.test_items = []
+        self.changed_items = []
+        self.module_name = "untitled"
 
         # Configure grid to expand
         self.root.grid_rowconfigure(0, weight=0)
@@ -27,52 +27,57 @@ class CSVProcessorApp:
         btn = tk.Button(self.root, text="Export to PDF", command=self.export_to_csv, bg="green", fg="white")
         btn.grid(row=0, column=2, columnspan=3, padx=10, pady=5, sticky="nsew")
 
-        self.create_table(self.data1, "First Table", 1, 0)
-        self.create_table(self.data2, "Second Table", 1, 1)
-        self.create_table(self.data3, "Third Table", 1, 2)
+        self.create_table(self.test_items, "First Table", 1, 0)
+        self.create_table(self.test_items, "Second Table", 1, 1)
+        self.create_table(self.changed_items, "Third Table", 1, 2)
 
     def process_csv(self):
-        if not self.data1 or not self.data2:
+        if not self.test_items or not self.test_items:
             print("No data to process")
             return
         
         print("Processing Data")
-        line_items_prod = [item[0] for item in self.data1]
-        line_items_test = [item[0] for item in self.data2]
+        line_items_prod = [item[0] for item in self.live_items]
+        line_items_test = [item[0] for item in self.test_items]
 
         not_in_prod = [item for item in line_items_test if item not in line_items_prod]
         in_both = [item for item in line_items_test if item in line_items_prod]
 
-        format_changes = [item for item in in_both if self.data2[line_items_test.index(item)][1] != self.data1[line_items_prod.index(item)][1]]
-        formula_changes = [item for item in in_both if self.data2[line_items_test.index(item)][2] != self.data1[line_items_prod.index(item)][2]]
-        summary_changes = [item for item in in_both if self.data2[line_items_test.index(item)][3] != self.data1[line_items_prod.index(item)][3]]
+        format_changes = [item for item in in_both if self.test_items[line_items_test.index(item)][1] != self.live_items[line_items_prod.index(item)][1]]
+        formula_changes = [item for item in in_both if self.test_items[line_items_test.index(item)][2] != self.live_items[line_items_prod.index(item)][2]]
+        summary_changes = [item for item in in_both if self.test_items[line_items_test.index(item)][3] != self.live_items[line_items_prod.index(item)][3]]
 
         merged_list = not_in_prod + format_changes + formula_changes + summary_changes
         unique_merged_list = list(set(merged_list))
 
-        new_data3 = [row for row in self.data2 if row[0] in unique_merged_list]
-        self.update_table(self.data3, new_data3, 2)
-        self.data3 = new_data3
+        new_data3 = [row for row in self.test_items if row[0] in unique_merged_list]
+        self.update_table(self.changed_items, new_data3, 2)
+        self.changed_items = new_data3
 
         print(self.module_name)
 
     def export_to_csv(self):
         print("Exporting to CSV")
 
-        if not self.data3:
+        if not self.changed_items:
             print("No data to export")
             return
         
-        desktop_path = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
+        desktop_path = os.path.join(os.environ['USERPROFILE'], 'Desktop')
         save_path = filedialog.askdirectory(initialdir=desktop_path)
+
         if not save_path:
             print("Save operation cancelled")
-            return
-        file_path = f"{save_path}/{self.module_name}_changes.csv"
-
-        with open(file_path, "w", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerows(self.data3)
+        else:
+            file_path = os.path.join(save_path, f"{self.module_name}_changes.csv")
+            file_path = os.path.normpath(file_path)  # Normalize path
+            
+            # Create and write an empty file (or overwrite if exists)
+            with open(file_path, "w", encoding="utf-8") as file:
+                writer = csv.writer(file)
+                writer.writerows(self.changed_items)
+            
+            print(f"File created: {file_path}")
 
     def open_file(self, from_where):
         if from_where == "Process":
@@ -87,7 +92,8 @@ class CSVProcessorApp:
                 row_no = 1
                 for row in csvreader:
                     if row_no == 2:
-                        self.module_name = row[0].strip(':')
+                        self.module_name = row[0].replace(":", "_")
+                        print(self.module_name)
                     elif row_no > 2:
                         row_to_append = (row[0], row[1], row[2], row[3], row[4])
                         csv_data.append(row_to_append)
@@ -96,12 +102,12 @@ class CSVProcessorApp:
 
             # Update the specific table with new data
             if from_where == "Live":
-                self.update_table(self.data1, csv_data, 0)
-                if self.data2:
+                self.update_table(self.live_items, csv_data, 0)
+                if self.test_items:
                     self.process_csv()
             elif from_where == "Test":
-                self.update_table(self.data2, csv_data, 1)
-                if self.data1:
+                self.update_table(self.test_items, csv_data, 1)
+                if self.live_items:
                     self.process_csv()
 
     def update_table(self, table_data, new_data, column):
